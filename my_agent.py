@@ -2,6 +2,8 @@
 import os
 from deepagents import create_deep_agent
 from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 # 1. 定义一个工具函数，Agent 可以调用它
 def get_system_info(query: str):
@@ -15,7 +17,7 @@ def get_research_agent():
     llm = ChatOpenAI(
         model="glm-4",
         base_url="https://open.bigmodel.cn/api/paas/v4",
-        api_key=""  # 建议正式项目用 os.environ.get("ZHIPU_API_KEY")
+        api_key=os.getenv("ZHIPU_API_KEY")  # 建议正式项目用 os.environ.get("ZHIPU_API_KEY")
     )
 
     # 2. 将 model 对象直接传给 Agent
