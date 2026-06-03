@@ -1,0 +1,19 @@
+# 项目技术栈说明文档
+
+## 1. 核心架构对比：Java vs Python
+- Java Spring Boot：通常采用单体或微服务架构，依赖 IOC 容器管理 Bean，强类型语言，适合高并发、复杂的业务逻辑系统。
+- Python FastAPI：轻量级 Web 框架，基于 ASGI 标准，天生支持异步编程（async/await），性能极高，非常适合 AI 服务和数据处理任务。
+
+## 2. 研发规范
+- 数据库操作：Java 习惯使用 MyBatis 或 JPA；Python 推荐使用 SQLAlchemy 或 SQLModel 进行 ORM 操作。
+- 依赖管理：Java 使用 Maven (pom.xml) 或 Gradle；Python 使用 pip 或 Poetry，建议为每个项目创建独立的虚拟环境（venv）。
+
+## 3. 常见技术问答
+Q: 如何处理 Python 中的高并发？
+A: 利用 asyncio 库编写异步代码，或使用 Gunicorn + Uvicorn 部署。
+
+Q: 为什么引入 AI Agent？
+A: Agent 能够通过 Tool-Use 能力调用外部 API，改变了过去传统后端“被动接收请求”的模式，实现了基于推理的复杂任务调度。
+
+## 4. 当前项目信息
+本项目 (pyagent) 是一个基于 LangChain 和 DeepAgents 框架的 AI 智能体项目，旨在实现将本地知识库与大模型能力相结合，支持 RAG（检索增强生成）模式。
