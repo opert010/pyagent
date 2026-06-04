@@ -42,12 +42,12 @@ pyagent/
 
 1. **克隆项目**:
 ```bash
-
+git clone https://github.com/opert010/pyagent.git
 ```
 
 
 
-git clone https://github.com/opert010/pyagent.git
+
 
 cd pyagent
 
@@ -62,12 +62,12 @@ ZHIPU_API_KEY=your_actual_api_key
 
 3. **安装依赖**:
 ```bash
-
+pip install -r requirements.txt
 ```
 
 
 
-pip install -r requirements.txt
+
 
 ```
 
