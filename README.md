@@ -43,13 +43,14 @@ pyagent/
 1. **克隆项目**:
 ```bash
 git clone https://github.com/opert010/pyagent.git
+cd pyagent
 ```
 
 
 
 
 
-cd pyagent
+
 
 ```
 
