@@ -84,22 +84,25 @@ def main() -> None:
         assert resp.content.strip()
 
     def t_tools():
-        from tools import (
-            compare_material_properties,
-            submit_vasp_job,
-            search_process_sop,
-        )
+        from tools import compare_material_properties, submit_vasp_job, write_experiment_record
+        from tools.registry import AGENT_TOOL_NAMES, get_tools_for_agent, list_tool_catalog
 
         result = compare_material_properties("SiO2,BCB", "k,Td_C")
         assert "SiO2" in result and "BCB" in result
         job = submit_vasp_job("SiO2", "dielectric")
         assert "job_id" in job
+        eln = write_experiment_record("BCB 固化测试", "110C 软烘 -> 350C 硬固化")
+        assert "record_id" in eln
+
+        researcher_tools = get_tools_for_agent("researcher")
+        assert len(researcher_tools) == len(AGENT_TOOL_NAMES["researcher"])
+        assert len(list_tool_catalog()) >= 8
 
     results.append(check("依赖与模块导入", t_imports))
     results.append(check("知识库文件", t_knowledge_files))
     results.append(check("RAG 混合检索", t_rag_retrieval))
     results.append(check("多 Agent 编排图", t_orchestrator_graph))
-    results.append(check("Simulation/Analyst 工具", t_tools))
+    results.append(check("Tool Registry 与工具", t_tools))
 
     if args.with_llm:
         results.append(check("LLM API 连通", t_llm))

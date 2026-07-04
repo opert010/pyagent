@@ -17,6 +17,7 @@ from rag import (
     reset_retriever_cache,
     split_documents,
 )
+from tools.registry import list_tool_catalog
 
 app = FastAPI(title="AI4Material Multi-Agent API")
 
@@ -93,7 +94,11 @@ async def generate_response(session_id: str, query: str):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "AI4Material Multi-Agent API"}
+    return {
+        "status": "ok",
+        "service": "AI4Material Multi-Agent API",
+        "tools": list_tool_catalog(),
+    }
 
 
 @app.post("/chat/stream")

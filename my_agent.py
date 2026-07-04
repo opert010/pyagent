@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
-from rag import search_knowledge_base
+from tools.registry import AGENT_PROMPTS, get_tools_for_agent
 
 load_dotenv()
 
@@ -27,7 +27,7 @@ def get_research_agent(checkpointer=None):
 
     return create_react_agent(
         model=llm,
-        tools=[search_knowledge_base],
+        tools=get_tools_for_agent("researcher"),
         checkpointer=checkpointer,
         prompt=RESEARCH_AGENT_PROMPT,
     )
