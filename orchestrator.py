@@ -30,7 +30,14 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
 from typing_extensions import TypedDict
 
-from my_agent import search_knowledge_base
+from rag import search_knowledge_base
+from tools.analyst_tools import analyze_numeric_data, compare_material_properties
+from tools.lab_tools import search_process_sop
+from tools.simulation_tools import (
+    get_simulation_job_status,
+    get_vasp_incar_template,
+    submit_vasp_job,
+)
 
 load_dotenv()
 
@@ -353,35 +360,48 @@ def get_orchestrator_graph(checkpointer=None):
         model=llm,
         tools=[search_knowledge_base],
         prompt=(
-            "你是材料科学知识检索专家。"
-            "回答前务必调用 search_knowledge_base 查询知识库，"
-            "并注明检索到的关键信息。"
+            "你是材料科学知识检索专家，负责封装材料、工艺、模拟与表征知识检索。"
+            "回答前必须调用 search_knowledge_base，并在回答中引用来源编号（如 [1]）。"
+            "若知识库无相关内容，明确说明未检索到，不得编造参数。"
         ),
     )
 
-    simulation_agent = _make_llm_agent_node(
-        "simulation",
-        "你是 computational materials 专家，擅长 VASP/LAMMPS 等模拟方案设计。"
-        "当前为骨架阶段：给出计算模型、关键参数与预期输出，标注需对接的真实模拟工具。",
+    simulation_agent = create_react_agent(
+        model=llm,
+        tools=[submit_vasp_job, get_vasp_incar_template, get_simulation_job_status],
+        prompt=(
+            "你是 computational materials 模拟专家，擅长 VASP 第一性原理计算。"
+            "设计模拟方案时，先调用 get_vasp_incar_template 获取参数模板，"
+            "需要提交任务时使用 submit_vasp_job，并用 get_simulation_job_status 跟踪状态。"
+            "当前为 Mock 环境，需在结论中说明后续应对接真实 HPC。"
+        ),
     )
-    analyst_agent = _make_llm_agent_node(
-        "analyst",
-        "你是材料数据分析师，擅长物性对比、趋势分析与实验/模拟结果解读。"
-        "输出应包含表格化对比要点与不确定性说明。",
+    analyst_agent = create_react_agent(
+        model=llm,
+        tools=[compare_material_properties, analyze_numeric_data],
+        prompt=(
+            "你是材料数据分析师，负责物性对比与数值统计。"
+            "对比材料时使用 compare_material_properties，分析数值序列时使用 analyze_numeric_data。"
+            "输出需包含表格化对比、统计摘要与不确定性说明。"
+        ),
     )
-    lab_agent = _make_llm_agent_node(
-        "lab",
-        "你是实验室工艺专家，擅长合成路线、表征方法与 ELN 实验记录。"
-        "输出应包含可执行的实验步骤与安全注意事项。",
+    lab_agent = create_react_agent(
+        model=llm,
+        tools=[search_process_sop],
+        prompt=(
+            "你是实验室工艺专家，负责合成路线、表征方法与实验记录。"
+            "制定实验方案前必须调用 search_process_sop 检索工艺与 SOP，"
+            "输出可执行步骤、关键参数与安全注意事项。"
+        ),
     )
 
     graph = StateGraph(AgentState)
 
     graph.add_node("planner", planner_node)
     graph.add_node("researcher", _make_react_agent_node("researcher", researcher_agent))
-    graph.add_node("simulation", simulation_agent)
-    graph.add_node("analyst", analyst_agent)
-    graph.add_node("lab", lab_agent)
+    graph.add_node("simulation", _make_react_agent_node("simulation", simulation_agent))
+    graph.add_node("analyst", _make_react_agent_node("analyst", analyst_agent))
+    graph.add_node("lab", _make_react_agent_node("lab", lab_agent))
     graph.add_node("advance", advance_task_node)
     graph.add_node("reviewer", reviewer_node)
 
