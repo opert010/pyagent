@@ -1,16 +1,20 @@
 import json
+
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from my_agent import get_research_agent
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
+from pydantic import BaseModel
 
-app = FastAPI()
+from orchestrator import get_orchestrator_graph
 
-# 初始化内存检查点
+app = FastAPI(title="AI4Material Multi-Agent API")
+
 memory = MemorySaver()
-# 初始化 Agent
-agent = get_research_agent(checkpointer=memory)
+graph = get_orchestrator_graph(checkpointer=memory)
+
+# 需要向前端流式输出的编排节点
+STREAM_NODES = ("planner", "researcher", "simulation", "analyst", "lab", "reviewer")
 
 
 class ChatRequest(BaseModel):
@@ -18,31 +22,46 @@ class ChatRequest(BaseModel):
     query: str
 
 
-async def generate_response(session_id: str, query: str):
-    """
-    异步生成器，用于处理流式输出
-    """
-    config = {"configurable": {"thread_id": session_id}}
+def _extract_message_content(node_output: dict) -> str | None:
+    """从节点更新中提取最新 AI 消息内容。"""
+    messages = node_output.get("messages")
+    if not messages:
+        return None
+    last = messages[-1]
+    if isinstance(last, AIMessage) and last.content:
+        return last.content
+    content = getattr(last, "content", None)
+    return content if content else None
 
-    # 使用 astream 逐块获取响应
-    # 注意：根据你的具体 LangGraph 结构，chunk 的获取方式可能略有不同
-    async for event in agent.astream({"messages": [("user", query)]}, config=config):
-        # LangGraph 可能会返回不同类型的节点更新，这里我们只提取 AIMessage 的内容
-        if "agent" in event:
-            content = event["agent"]["messages"][-1].content
-            if content:
-                # 为了让前端易于处理，我们将内容包装为 JSON 字符串块
-                yield json.dumps({"token": content}, ensure_ascii=False) + "\n"
+
+async def generate_response(session_id: str, query: str):
+    """多 Agent 编排流式响应，按节点输出 NDJSON 事件。"""
+    config = {"configurable": {"thread_id": session_id}}
+    input_state = {"messages": [HumanMessage(content=query)]}
+
+    async for event in graph.astream(input_state, config=config):
+        for node_name, node_output in event.items():
+            if node_name not in STREAM_NODES:
+                continue
+
+            content = _extract_message_content(node_output)
+            if not content:
+                continue
+
+            payload = {
+                "type": "final" if node_name == "reviewer" else "node",
+                "node": node_name,
+                "token": content,
+            }
+            yield json.dumps(payload, ensure_ascii=False) + "\n"
 
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    """
-    流式聊天接口
-    """
+    """流式聊天接口（多 Agent 编排）。"""
     return StreamingResponse(
         generate_response(request.session_id, request.query),
-        media_type="application/x-ndjson"  # 使用 ndjson 格式，前端更易于按行读取
+        media_type="application/x-ndjson",
     )
 
 
