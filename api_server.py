@@ -3,8 +3,9 @@ import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 
@@ -20,6 +21,8 @@ from rag import (
 from tools.registry import list_tool_catalog
 
 app = FastAPI(title="AI4Material Multi-Agent API")
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 memory = MemorySaver()
 graph = get_orchestrator_graph(checkpointer=memory)
@@ -46,6 +49,31 @@ class UploadResponse(BaseModel):
     chunks: int
     rebuilt: bool
     message: str
+
+
+class SessionHistoryResponse(BaseModel):
+    session_id: str
+    messages: list[dict]
+    task_plan: list[dict]
+    tool_results: dict
+    final_answer: str
+    current_agent: str
+
+
+def _serialize_message(msg) -> dict:
+    """将 LangChain 消息或元组格式化为 JSON 可序列化结构。"""
+    if isinstance(msg, tuple) and len(msg) == 2:
+        role, content = msg
+        return {"role": str(role), "content": content}
+    if isinstance(msg, HumanMessage):
+        return {"role": "user", "content": msg.content}
+    if isinstance(msg, AIMessage):
+        return {"role": "assistant", "content": msg.content}
+    if isinstance(msg, SystemMessage):
+        return {"role": "system", "content": msg.content}
+    if isinstance(msg, BaseMessage):
+        return {"role": msg.type, "content": msg.content}
+    return {"role": "unknown", "content": str(msg)}
 
 
 def _extract_message_content(node_output: dict) -> str | None:
@@ -90,6 +118,35 @@ async def generate_response(session_id: str, query: str):
                 "token": content,
             }
             yield json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+@app.get("/")
+async def root():
+    """重定向到 Web Demo。"""
+    return RedirectResponse(url="/demo/")
+
+
+@app.get("/sessions/{session_id}/history", response_model=SessionHistoryResponse)
+async def get_session_history(session_id: str):
+    """获取会话完整状态（消息、任务计划、工具结果）。"""
+    config = {"configurable": {"thread_id": session_id}}
+    snapshot = graph.get_state(config)
+    if snapshot is None or not snapshot.values:
+        raise HTTPException(status_code=404, detail="会话不存在或尚无记录")
+
+    values = snapshot.values
+    messages = values.get("messages") or []
+    if not messages and not values.get("final_answer"):
+        raise HTTPException(status_code=404, detail="会话不存在或尚无记录")
+
+    return SessionHistoryResponse(
+        session_id=session_id,
+        messages=[_serialize_message(m) for m in messages],
+        task_plan=values.get("task_plan") or [],
+        tool_results=values.get("tool_results") or {},
+        final_answer=values.get("final_answer") or "",
+        current_agent=values.get("current_agent") or "",
+    )
 
 
 @app.get("/health")
@@ -167,6 +224,10 @@ async def upload_knowledge(
         rebuilt=rebuild,
         message="上传成功" + ("，知识库已重建" if rebuild else "，请调用 /knowledge/rebuild 重建索引"),
     )
+
+
+if STATIC_DIR.exists():
+    app.mount("/demo", StaticFiles(directory=str(STATIC_DIR), html=True), name="demo")
 
 
 if __name__ == "__main__":

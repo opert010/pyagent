@@ -1,0 +1,9 @@
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.env
+.git/
+.cursor/
+chroma_db/
+*.mdc

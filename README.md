@@ -46,7 +46,15 @@ pyagent/
 │   └── lab_tools.py           # 工艺 SOP、ELN 记录（Mock）
 ├── scripts/
 │   ├── ingest_knowledge.py    # 知识库入库
-│   └── verify_baseline.py     # 基线验证
+│   ├── verify_baseline.py     # 基线验证（含 RAG Benchmark）
+│   ├── run_benchmark.py       # Benchmark 批量评估
+│   └── docker_entrypoint.sh   # Docker 启动脚本
+├── benchmarks/
+│   └── material_queries.json  # 材料研发 benchmark 问题集
+├── static/
+│   └── index.html             # Web 对话 Demo
+├── Dockerfile
+├── docker-compose.yml
 ├── requirements.txt
 ├── .env                       # 环境变量（需自行创建，不入库）
 └── chroma_db/                 # 向量库（运行时生成，不入库）
@@ -101,6 +109,16 @@ python scripts/verify_baseline.py
 python scripts/verify_baseline.py --with-llm
 ```
 
+### 7. Benchmark 评估（RAG，不调用 LLM）
+
+```bash
+python scripts/run_benchmark.py
+# 仅校验 benchmark 文件
+python scripts/run_benchmark.py --dry-run
+# 完整多 Agent 编排（慢，需 API Key）
+python scripts/run_benchmark.py --full --limit 2
+```
+
 ## 使用方式
 
 ### 命令行测试
@@ -121,12 +139,32 @@ python -m uvicorn api_server:app --host 127.0.0.1 --port 8000 --reload
 
 浏览器访问 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) 查看 Swagger 文档。
 
+### Web 对话 Demo
+
+启动 API 后访问 [http://127.0.0.1:8000/demo/](http://127.0.0.1:8000/demo/)：
+
+- 流式展示 Planner → Researcher / Simulation / Analyst / Lab → Reviewer 各节点输出
+- 支持加载会话历史（`GET /sessions/{id}/history`）
+- 内置典型材料研发示例问题
+
+### Docker 部署
+
+```bash
+# 确保 .env 中已配置 ZHIPU_API_KEY
+docker compose up --build
+```
+
+首次启动会自动构建向量库。访问 [http://127.0.0.1:8000/demo/](http://127.0.0.1:8000/demo/) 体验对话。
+
 ## API 接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/health` | 健康检查（含工具目录） |
+| GET | `/` | 重定向到 Web Demo |
+| GET | `/demo/` | Web 对话前端 |
 | POST | `/chat/stream` | 多 Agent 流式对话（NDJSON） |
+| GET | `/sessions/{session_id}/history` | 获取会话状态与历史 |
 | POST | `/knowledge/rebuild` | 全量重建向量库 |
 | POST | `/knowledge/upload` | 上传知识文档 |
 
@@ -172,6 +210,14 @@ POST /chat/stream
 {"type": "node", "node": "researcher", "token": "【researcher】..."}
 {"type": "final", "node": "reviewer", "token": "最终报告..."}
 ```
+
+### 会话历史
+
+```bash
+GET /sessions/session-001/history
+```
+
+响应包含 `messages`、`task_plan`、`tool_results`、`final_answer`。
 
 ### 上传知识文档
 
@@ -267,12 +313,11 @@ python scripts/ingest_knowledge.py --rebuild
 
 ## 后续规划
 
-- 会话状态 API（`GET /sessions/{id}/state`）
 - Checkpointer 持久化（Redis / PostgreSQL）
 - Simulation 对接 Slurm / HPC 脚本模板
 - ELN / LIMS 真实 API 对接
-- 流式对话前端 Demo
-- Docker 化部署
+- 子任务并行执行与 Human-in-the-loop
+- LangSmith 可观测性集成
 
 ## 许可证
 

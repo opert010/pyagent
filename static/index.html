@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI4Material 多 Agent 对话 Demo</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --node-bg: #243044;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+    header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 600; }
+    header p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .row > * { flex: 1; }
+    .actions { display: flex; gap: 10px; margin-top: 12px; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    button.secondary:hover:not(:disabled) { border-color: var(--muted); }
+    .nodes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .node-badge {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--node-bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .node-badge.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.15);
+    }
+    .node-badge.done {
+      border-color: var(--success);
+      color: var(--success);
+      background: rgba(34, 197, 94, 0.1);
+    }
+    .output {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 200px;
+      max-height: 480px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+    .output .node-block {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .output .node-block:last-child { border-bottom: none; margin-bottom: 0; }
+    .output .node-title {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-family: inherit;
+    }
+    .output .final-block .node-title { color: var(--success); }
+    .status { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+    .status.error { color: #ef4444; }
+    .examples { margin-top: 8px; }
+    .examples button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      margin: 4px 4px 0 0;
+    }
+    .examples button:hover { color: var(--text); border-color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>AI4Material 多 Agent 对话</h1>
+      <p>Planner → Researcher / Simulation / Analyst / Lab → Reviewer</p>
+    </header>
+
+    <div class="panel">
+      <div class="row">
+        <div>
+          <label for="sessionId">会话 ID</label>
+          <input type="text" id="sessionId" value="demo-session-001" />
+        </div>
+      </div>
+      <div>
+        <label for="query">研发问题</label>
+        <textarea id="query" placeholder="例如：设计一种低介电常数封装材料，并评估热稳定性">设计一种低介电常数封装材料，并评估热稳定性</textarea>
+      </div>
+      <div class="examples">
+        <button type="button" data-query="BCB 旋涂固化的标准工艺步骤是什么？">BCB 工艺</button>
+        <button type="button" data-query="如何用 VASP 计算材料的介电常数？">VASP 介电常数</button>
+        <button type="button" data-query="对比 SiO2 和 BCB 的介电常数与热分解温度">材料对比</button>
+      </div>
+      <div class="actions">
+        <button id="sendBtn">发送（流式）</button>
+        <button id="historyBtn" class="secondary">加载会话历史</button>
+        <button id="clearBtn" class="secondary">清空输出</button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="nodes" id="nodeBadges">
+      <span class="node-badge" data-node="planner">Planner</span>
+      <span class="node-badge" data-node="researcher">Researcher</span>
+      <span class="node-badge" data-node="simulation">Simulation</span>
+      <span class="node-badge" data-node="analyst">Analyst</span>
+      <span class="node-badge" data-node="lab">Lab</span>
+      <span class="node-badge" data-node="reviewer">Reviewer</span>
+    </div>
+
+    <div class="panel">
+      <label>输出</label>
+      <div class="output" id="output"></div>
+    </div>
+  </div>
+
+  <script>
+    const NODE_ORDER = ["planner", "researcher", "simulation", "analyst", "lab", "reviewer"];
+    const NODE_LABELS = {
+      planner: "Planner 任务规划",
+      researcher: "Researcher 知识检索",
+      simulation: "Simulation 模拟计算",
+      analyst: "Analyst 物性分析",
+      lab: "Lab 工艺实验",
+      reviewer: "Reviewer 汇总审核",
+    };
+
+    const sessionIdEl = document.getElementById("sessionId");
+    const queryEl = document.getElementById("query");
+    const sendBtn = document.getElementById("sendBtn");
+    const historyBtn = document.getElementById("historyBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const outputEl = document.getElementById("output");
+    const statusEl = document.getElementById("status");
+    const badges = document.querySelectorAll(".node-badge");
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.className = "status" + (isError ? " error" : "");
+    }
+
+    function resetBadges() {
+      badges.forEach((b) => b.classList.remove("active", "done"));
+    }
+
+    function markNode(node, state) {
+      const badge = document.querySelector(`[data-node="${node}"]`);
+      if (!badge) return;
+      badge.classList.remove("active", "done");
+      if (state) badge.classList.add(state);
+    }
+
+    function appendNodeOutput(node, content, isFinal = false) {
+      const block = document.createElement("div");
+      block.className = "node-block" + (isFinal ? " final-block" : "");
+      block.innerHTML = `<div class="node-title">${NODE_LABELS[node] || node}</div>`;
+      const text = document.createElement("div");
+      text.textContent = content;
+      block.appendChild(text);
+      outputEl.appendChild(block);
+      outputEl.scrollTop = outputEl.scrollHeight;
+    }
+
+    document.querySelectorAll(".examples button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        queryEl.value = btn.dataset.query;
+      });
+    });
+
+    clearBtn.addEventListener("click", () => {
+      outputEl.innerHTML = "";
+      resetBadges();
+      setStatus("");
+    });
+
+    historyBtn.addEventListener("click", async () => {
+      const sessionId = sessionIdEl.value.trim();
+      if (!sessionId) return setStatus("请填写会话 ID", true);
+
+      setStatus("加载会话历史中...");
+      try {
+        const resp = await fetch(`/sessions/${encodeURIComponent(sessionId)}/history`);
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        outputEl.innerHTML = "";
+
+        if (data.task_plan?.length) {
+          appendNodeOutput("planner", "任务计划:\n" + data.task_plan.map(
+            (t) => `  [${t.status}] ${t.agent}: ${t.description}`
+          ).join("\n"));
+        }
+
+        for (const msg of data.messages || []) {
+          if (msg.role === "user") continue;
+          const match = msg.content.match(/^【(\w+)】/);
+          const node = match ? match[1].toLowerCase() : "assistant";
+          if (NODE_ORDER.includes(node)) {
+            markNode(node, "done");
+          }
+        }
+
+        if (data.final_answer) {
+          markNode("reviewer", "done");
+          appendNodeOutput("reviewer", data.final_answer, true);
+        }
+
+        setStatus(`已加载会话，共 ${(data.messages || []).length} 条消息`);
+      } catch (err) {
+        setStatus("加载失败: " + err.message, true);
+      }
+    });
+
+    sendBtn.addEventListener("click", async () => {
+      const sessionId = sessionIdEl.value.trim();
+      const query = queryEl.value.trim();
+      if (!sessionId || !query) return setStatus("请填写会话 ID 和问题", true);
+
+      sendBtn.disabled = true;
+      historyBtn.disabled = true;
+      outputEl.innerHTML = "";
+      resetBadges();
+      setStatus("正在调用多 Agent 编排（约 2–5 分钟）...");
+
+      try {
+        const resp = await fetch("/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, query }),
+        });
+
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const payload = JSON.parse(line);
+            const node = payload.node;
+            const isFinal = payload.type === "final";
+
+            NODE_ORDER.forEach((n) => {
+              if (n === node) markNode(n, isFinal ? "done" : "active");
+              else if (NODE_ORDER.indexOf(n) < NODE_ORDER.indexOf(node)) markNode(n, "done");
+            });
+
+            appendNodeOutput(node, payload.token, isFinal);
+          }
+        }
+
+        NODE_ORDER.forEach((n) => markNode(n, "done"));
+        setStatus("完成。可点击「加载会话历史」查看完整状态。");
+      } catch (err) {
+        setStatus("请求失败: " + err.message, true);
+      } finally {
+        sendBtn.disabled = false;
+        historyBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

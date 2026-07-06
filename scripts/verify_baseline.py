@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
+
+BENCHMARK_FILE = ROOT / "benchmarks" / "material_queries.json"
 
 
 def check(name: str, fn) -> bool:
@@ -98,11 +101,48 @@ def main() -> None:
         assert len(researcher_tools) == len(AGENT_TOOL_NAMES["researcher"])
         assert len(list_tool_catalog()) >= 8
 
+    def t_benchmark_file():
+        data = json.loads(BENCHMARK_FILE.read_text(encoding="utf-8"))
+        queries = data.get("queries", [])
+        assert len(queries) >= 5, "benchmark 问题数量不足"
+        for item in queries:
+            assert item.get("id") and item.get("query") and item.get("rag_keywords")
+
+    def t_rag_benchmark_eval():
+        from rag import search_knowledge_base
+
+        data = json.loads(BENCHMARK_FILE.read_text(encoding="utf-8"))
+        passed = 0
+        for item in data["queries"]:
+            result = search_knowledge_base(item["query"])
+            has_source = "来源:" in result
+            keywords = item["rag_keywords"]
+            matched = sum(1 for kw in keywords if kw.lower() in result.lower())
+            coverage = matched / len(keywords) if keywords else 1.0
+            if has_source and coverage >= 0.5:
+                passed += 1
+        assert passed >= len(data["queries"]) * 0.75, (
+            f"RAG benchmark 通过率过低: {passed}/{len(data['queries'])}"
+        )
+
+    def t_demo_and_session_api():
+        static_index = ROOT / "static" / "index.html"
+        assert static_index.exists(), "前端 Demo 文件缺失"
+
+        from api_server import app
+
+        routes = {route.path for route in app.routes if hasattr(route, "path")}
+        assert "/sessions/{session_id}/history" in routes
+        assert "/chat/stream" in routes
+
     results.append(check("依赖与模块导入", t_imports))
     results.append(check("知识库文件", t_knowledge_files))
     results.append(check("RAG 混合检索", t_rag_retrieval))
     results.append(check("多 Agent 编排图", t_orchestrator_graph))
     results.append(check("Tool Registry 与工具", t_tools))
+    results.append(check("Benchmark 问题集", t_benchmark_file))
+    results.append(check("RAG Benchmark 评估", t_rag_benchmark_eval))
+    results.append(check("前端 Demo 与会话 API", t_demo_and_session_api))
 
     if args.with_llm:
         results.append(check("LLM API 连通", t_llm))

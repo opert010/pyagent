@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "description": "材料研发典型 benchmark 问题集，用于 RAG 检索与多 Agent 编排评估",
+  "queries": [
+    {
+      "id": "low_k_design",
+      "query": "设计一种低介电常数封装材料，并评估热稳定性",
+      "rag_keywords": ["BCB", "k", "Td"],
+      "expected_agents": ["researcher", "analyst"]
+    },
+    {
+      "id": "bcb_curing",
+      "query": "BCB 旋涂固化的标准工艺步骤是什么？",
+      "rag_keywords": ["旋涂", "350", "固化"],
+      "expected_agents": ["lab"]
+    },
+    {
+      "id": "vasp_dielectric",
+      "query": "如何用 VASP 计算材料的介电常数？需要哪些 INCAR 参数？",
+      "rag_keywords": ["LEPSILON", "DFPT", "INCAR"],
+      "expected_agents": ["simulation"]
+    },
+    {
+      "id": "material_compare",
+      "query": "对比 SiO2 和 BCB 的介电常数与热分解温度",
+      "rag_keywords": ["SiO", "BCB", "介电"],
+      "expected_agents": ["analyst", "researcher"]
+    },
+    {
+      "id": "thermal_stability",
+      "query": "封装材料热稳定性评估有哪些关键指标？",
+      "rag_keywords": ["Td", "TGA", "热"],
+      "expected_agents": ["researcher", "analyst"]
+    },
+    {
+      "id": "encapsulation_defect",
+      "query": "BCB 固化后出现附着力差，可能原因和解决方法？",
+      "rag_keywords": ["附着力", "前处理", "固化"],
+      "expected_agents": ["lab", "researcher"]
+    },
+    {
+      "id": "low_k_selection",
+      "query": "集成电路封装选型 low-k 材料需要注意哪些要点？",
+      "rag_keywords": ["low-k", "k", "吸水"],
+      "expected_agents": ["researcher"]
+    },
+    {
+      "id": "characterization",
+      "query": "如何表征封装材料的介电常数和热稳定性？",
+      "rag_keywords": ["表征", "介电", "TGA"],
+      "expected_agents": ["lab", "analyst"]
+    }
+  ]
+}
